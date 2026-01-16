@@ -1,74 +1,43 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const morgan = require('morgan');
 const connectDB = require('./src/config/database');
+const errorHandler = require('./src/middleware/errorHandler');
 
-// Load environment variables
+// Load env vars
 dotenv.config();
 
-// Connect to MongoDB
+// Connect to database
 connectDB();
 
 const app = express();
 
-// Middleware
-app.use(cors({
-    origin: process.env.FRONTEND_URL || '*',
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE"],
-}));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(morgan('dev')); // Logging
+// Body parser
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Static folder for uploads
-app.use('/uploads', express.static('uploads'));
+// Enable CORS
+app.use(cors());
 
-// Import Routes
-const authRoutes = require('./src/routes/authRoutes');
-const bookingRoutes = require('./src/routes/bookingRoutes');
-const pmcRoutes = require('./src/routes/pmcRoutes');
-const publicRoutes = require('./src/routes/publicRoutes');
-const recyclerRoutes = require('./src/routes/recyclerRoutes');
+// Routes
+app.use('/api/auth', require('./src/routes/authRoutes'));
+app.use('/api/hoardings', require('./src/routes/hoardingRoutes'));
+app.use('/api/bookings', require('./src/routes/bookingRoutes'));
+app.use('/api/public/complaints', require('./src/routes/complaintRoutes'));
+app.use('/api/pmc', require('./src/routes/pmcRoutes'));
+app.use('/api/recycler', require('./src/routes/recyclerRoutes'));
+app.use('/api/qr', require('./src/routes/qrRoutes'));
 
-// Mount Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/bookings', bookingRoutes);
-app.use('/api/pmc', pmcRoutes);
-app.use('/api/public', publicRoutes);
-app.use('/api/recycler', recyclerRoutes);
+// Error handler
+app.use(errorHandler);
 
-// Health check route
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'OK',
-        message: 'Hoarding Management API is running',
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(err.status || 500).json({
-        success: false,
-        message: err.message || 'Internal Server Error',
-        ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-    });
-});
-
-// 404 handler
-app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        message: 'Route not found'
-    });
+// Health check
+app.get('/', (req, res) => {
+    res.json({ message: 'Hoarding Management API Running' });
 });
 
 const PORT = process.env.PORT || 8004;
 
 app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📡 Environment: ${process.env.NODE_ENV}`);
+    console.log(`Server running on port ${PORT}`);
 });

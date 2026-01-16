@@ -1,26 +1,24 @@
 const Booking = require('../models/Booking');
 const Hoarding = require('../models/Hoarding');
-const generateQRCodeUtil = require('../utils/qrCodeGenerator');
+const { generateBookingId } = require('../utils/generateId');
+const { generateQRCode } = require('../utils/qrCodeGenerator');
 
-// @desc    Create new booking
+// @desc    Create booking
 // @route   POST /api/bookings
-// @access  Private (Printing Press)
+// @access  Private/PrintingPress
 exports.createBooking = async (req, res) => {
     try {
         const {
             hoardingId,
             displayName,
-            contactNumber,
-            customerName,
-            customerMobile,
-            hoardingType,
-            duration,
             startDate,
             endDate,
+            bannerImage
         } = req.body;
 
         // Check if hoarding exists and is available
         const hoarding = await Hoarding.findById(hoardingId);
+
         if (!hoarding) {
             return res.status(404).json({
                 success: false,
@@ -31,57 +29,48 @@ exports.createBooking = async (req, res) => {
         if (hoarding.status !== 'available') {
             return res.status(400).json({
                 success: false,
-                message: 'Hoarding is not available for booking'
+                message: 'Hoarding is not available'
             });
         }
 
-        // Calculate requested amount based on duration and rent
-        const requestedAmount = hoarding.baseRent * parseInt(duration);
+        // Calculate duration and rent
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const duration = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        const totalRent = hoarding.baseRent * Math.ceil(duration / 30);
 
-        // Handle uploaded banner image
-        const bannerImage = req.file ? `/uploads/${req.file.filename}` : null;
+        // Generate booking ID
+        const bookingId = generateBookingId();
 
         // Create booking
         const booking = await Booking.create({
-            hoardingId,
-            printingPressId: req.user._id,
+            bookingId,
+            printingPress: req.user._id,
+            hoarding: hoardingId,
             displayName,
-            contactNumber,
-            customerName,
-            customerMobile,
-            hoardingType,
-            duration: parseInt(duration),
-            startDate: new Date(startDate),
-            endDate: new Date(endDate),
-            requestedAmount,
+            startDate: start,
+            endDate: end,
+            duration,
+            totalRent,
             bannerImage,
             status: 'pending'
         });
 
-        // Generate QR code data
-        const qrData = {
+        // Generate QR Code
+        const qrCodeData = {
             bookingId: booking.bookingId,
+            hoardingId: hoarding.hoardingId,
             location: hoarding.location,
-            displayName,
-            customerName,
-            customerMobile,
-            hoardingType,
-            duration,
-            startDate,
-            endDate,
-            size: hoarding.size,
-            rent: hoarding.baseRent,
+            displayName
         };
 
-        booking.qrCodeData = JSON.stringify(qrData);
+        const qrCodeUrl = await generateQRCode(qrCodeData);
+        booking.qrCode = qrCodeUrl;
         await booking.save();
-
-        // Populate hoarding details
-        await booking.populate('hoardingId');
 
         res.status(201).json({
             success: true,
-            message: 'Booking created successfully. Pending PMC approval.',
+            message: 'Booking created successfully. Awaiting PMC approval.',
             booking
         });
     } catch (error) {
@@ -94,13 +83,14 @@ exports.createBooking = async (req, res) => {
     }
 };
 
-// @desc    Get all bookings for printing press
+// @desc    Get my bookings
 // @route   GET /api/bookings/my-bookings
-// @access  Private (Printing Press)
+// @access  Private/PrintingPress
 exports.getMyBookings = async (req, res) => {
     try {
-        const bookings = await Booking.find({ printingPressId: req.user._id })
-            .populate('hoardingId')
+        const bookings = await Booking.find({ printingPress: req.user._id })
+            .populate('hoarding')
+            .populate('reviewedBy', 'name email')
             .sort({ createdAt: -1 });
 
         res.json({
@@ -119,12 +109,13 @@ exports.getMyBookings = async (req, res) => {
 
 // @desc    Get booking by ID
 // @route   GET /api/bookings/:id
-// @access  Private (Printing Press)
+// @access  Private
 exports.getBookingById = async (req, res) => {
     try {
         const booking = await Booking.findById(req.params.id)
-            .populate('hoardingId')
-            .populate('printingPressId', 'name email phoneNo');
+            .populate('hoarding')
+            .populate('printingPress', 'name email companyName')
+            .populate('reviewedBy', 'name email');
 
         if (!booking) {
             return res.status(404).json({
@@ -133,11 +124,12 @@ exports.getBookingById = async (req, res) => {
             });
         }
 
-        // Check if booking belongs to user
-        if (booking.printingPressId._id.toString() !== req.user._id.toString()) {
+        // Check authorization
+        if (booking.printingPress._id.toString() !== req.user._id.toString() &&
+            req.user.userType !== 'pmc') {
             return res.status(403).json({
                 success: false,
-                message: 'Not authorized to access this booking'
+                message: 'Not authorized to view this booking'
             });
         }
 
@@ -154,12 +146,12 @@ exports.getBookingById = async (req, res) => {
     }
 };
 
-// @desc    Generate QR code for booking
+// @desc    Get QR code for booking
 // @route   GET /api/bookings/:id/qr-code
-// @access  Private (Printing Press)
-exports.generateQRCode = async (req, res) => {
+// @access  Private/PrintingPress
+exports.getQRCode = async (req, res) => {
     try {
-        const booking = await Booking.findById(req.params.id).populate('hoardingId');
+        const booking = await Booking.findById(req.params.id);
 
         if (!booking) {
             return res.status(404).json({
@@ -168,26 +160,67 @@ exports.generateQRCode = async (req, res) => {
             });
         }
 
-        // Check if booking belongs to user
-        if (booking.printingPressId.toString() !== req.user._id.toString()) {
-            return res.status(403).json({
+        if (!booking.qrCode) {
+            return res.status(404).json({
                 success: false,
-                message: 'Not authorized to access this booking'
+                message: 'QR code not generated yet'
             });
         }
 
-        // Generate QR code
-        const qrCodeDataURL = await generateQRCodeUtil(booking.qrCodeData);
-
         res.json({
             success: true,
-            qrCode: qrCodeDataURL,
+            qrCode: booking.qrCode,
             bookingId: booking.bookingId
         });
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: 'Error generating QR code',
+            message: 'Error fetching QR code',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Cancel booking
+// @route   DELETE /api/bookings/:id
+// @access  Private/PrintingPress
+exports.cancelBooking = async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id);
+
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: 'Booking not found'
+            });
+        }
+
+        // Check if user owns this booking
+        if (booking.printingPress.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized'
+            });
+        }
+
+        // Can only cancel pending bookings
+        if (booking.status !== 'pending') {
+            return res.status(400).json({
+                success: false,
+                message: 'Can only cancel pending bookings'
+            });
+        }
+
+        await booking.deleteOne();
+
+        res.json({
+            success: true,
+            message: 'Booking cancelled successfully'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error cancelling booking',
             error: error.message
         });
     }

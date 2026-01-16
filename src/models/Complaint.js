@@ -1,57 +1,79 @@
 const mongoose = require('mongoose');
 
-const complaintSchema = new mongoose.Schema({
+const ComplaintSchema = new mongoose.Schema({
     complaintId: {
         type: String,
         unique: true,
-        required: true,
+        required: true
     },
-    bookingId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Booking',
-    },
-    reportedBy: {
+    userId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: true
     },
-
-    location: {
+    complaintType: {
         type: String,
-        required: true,
+        required: [true, 'Complaint type is required'],
+        enum: ['illegal', 'damaged', 'expired', 'unsafe', 'other']
     },
-    scannedQRCode: String,
     description: {
         type: String,
-        required: true,
+        required: [true, 'Description is required']
     },
-    complaintImage: {
+    location: {
         type: String,
-        required: true,
+        required: [true, 'Location is required']
     },
+
+    // GPS Location from photo
+    coordinates: {
+        type: {
+            type: String,
+            enum: ['Point'],
+            default: 'Point'
+        },
+        coordinates: {
+            type: [Number], // [longitude, latitude]
+            required: true
+        }
+    },
+    address: String,
+    accuracy: Number,
+
+    photo: String,
+    photoTimestamp: Date,
 
     status: {
         type: String,
-        enum: ['submitted', 'under_review', 'resolved', 'rejected'],
-        default: 'submitted',
+        enum: ['pending', 'in-progress', 'resolved', 'rejected'],
+        default: 'pending'
     },
-    reviewedBy: {
+
+    // PMC Response
+    resolvedBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: 'User'
     },
-    resolution: String,
     resolvedAt: Date,
-}, {
-    timestamps: true,
-});
+    resolution: String,
 
-// Generate complaint ID
-complaintSchema.pre('save', async function (next) {
-    if (!this.complaintId) {
-        const timestamp = Date.now().toString().slice(-7);
-        this.complaintId = `CMP${timestamp}`;
+    // Rewards
+    rewardPoints: {
+        type: Number,
+        default: 0
+    },
+
+    createdAt: {
+        type: Date,
+        default: Date.now
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now
     }
-    next();
 });
 
-module.exports = mongoose.model('Complaint', complaintSchema);
+// Geospatial index
+ComplaintSchema.index({ coordinates: '2dsphere' });
+
+module.exports = mongoose.model('Complaint', ComplaintSchema);

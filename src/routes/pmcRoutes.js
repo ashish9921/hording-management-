@@ -1,66 +1,32 @@
 const express = require('express');
 const router = express.Router();
+const pmcController = require('../controllers/pmcController');
+const complaintController = require('../controllers/complaintController');
+const hoardingController = require('../controllers/hoardingController');
 const { protect, isPMC } = require('../middleware/auth');
 
-const {
-    getDashboardStats,
-    getPendingBookings,
-    reviewBooking,
-    approveBooking,
-    rejectBooking,
-    getAllBookings,
-    getPricingSettings,
-    updatePricingSettings,
-    getComplaintsForReview
-} = require('../controllers/pmcController');
-
-// All routes require authentication and PMC user type
 router.use(protect);
 router.use(isPMC);
 
-// @route   GET /api/pmc/dashboard
-// @desc    Get PMC dashboard statistics
-// @access  Private (PMC)
-router.get('/dashboard', getDashboardStats);
+// Stats
+router.get('/stats/overview', pmcController.getOverviewStats);
 
-// @route   GET /api/pmc/bookings/pending
-// @desc    Get all pending approval bookings
-// @access  Private (PMC)
-router.get('/bookings/pending', getPendingBookings);
+// Bookings
+router.get('/bookings/pending', pmcController.getPendingBookings);
+router.put('/bookings/:id/approve', pmcController.approveBooking);
+router.put('/bookings/:id/reject', pmcController.rejectBooking);
 
-// @route   GET /api/pmc/bookings
-// @desc    Get all bookings (with filters)
-// @access  Private (PMC)
-router.get('/bookings', getAllBookings);
+// Complaints
+router.get('/complaints', complaintController.getAllComplaints);
+router.put('/complaints/:id/resolve', complaintController.resolveComplaint);
+router.put('/complaints/:id/reject', complaintController.rejectComplaint);
 
-// @route   GET /api/pmc/bookings/:id/review
-// @desc    Get booking details for review
-// @access  Private (PMC)
-router.get('/bookings/:id/review', reviewBooking);
+// Hoardings
+router.post('/hoardings', hoardingController.createHoarding);
+router.put('/hoardings/:id', hoardingController.updateHoarding);
+router.delete('/hoardings/:id', hoardingController.deleteHoarding);
 
-// @route   POST /api/pmc/bookings/:id/approve
-// @desc    Approve a booking
-// @access  Private (PMC)
-router.post('/bookings/:id/approve', approveBooking);
-
-// @route   POST /api/pmc/bookings/:id/reject
-// @desc    Reject a booking
-// @access  Private (PMC)
-router.post('/bookings/:id/reject', rejectBooking);
-
-// @route   GET /api/pmc/settings/pricing
-// @desc    Get pricing settings
-// @access  Private (PMC)
-router.get('/settings/pricing', getPricingSettings);
-
-// @route   PUT /api/pmc/settings/pricing
-// @desc    Update pricing settings
-// @access  Private (PMC)
-router.put('/settings/pricing', updatePricingSettings);
-
-// @route   GET /api/pmc/complaints
-// @desc    Get all complaints for review
-// @access  Private (PMC)
-router.get('/complaints', getComplaintsForReview);
+// Collections
+router.put('/collections/:id/verify', pmcController.verifyCollection);
 
 module.exports = router;

@@ -153,7 +153,8 @@ exports.submitCollection = async (req, res) => {
         });
 
         // Update booking status
-        booking.status = 'expired';
+        booking.status = 'collected';  // ← ADD NEW STATUS
+        booking.collectionDate = new Date();
         await booking.save();
 
         res.status(201).json({

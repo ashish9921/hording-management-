@@ -1,53 +1,61 @@
 const mongoose = require('mongoose');
 
-const hoardingSchema = new mongoose.Schema({
+const HoardingSchema = new mongoose.Schema({
+    hoardingId: {
+        type: String,
+        unique: true,
+        required: true
+    },
     location: {
         type: String,
-        required: true,
+        required: [true, 'Location is required']
+    },
+    address: {
+        type: String,
+        required: [true, 'Address is required']
     },
     coordinates: {
-        latitude: {
-            type: Number,
-            required: true,
+        type: {
+            type: String,
+            enum: ['Point'],
+            default: 'Point'
         },
-        longitude: {
-            type: Number,
-            required: true,
-        },
+        coordinates: {
+            type: [Number], // [longitude, latitude]
+            required: true
+        }
     },
     size: {
         type: String,
-        required: true,
-    },
-    area: {
-        type: String,
-        required: true,
+        required: [true, 'Size is required']
     },
     baseRent: {
         type: Number,
-        required: true,
-    },
-    priceCategory: {
-        type: String,
-        enum: ['standard', 'prime'],
-        default: 'standard',
+        required: [true, 'Base rent is required']
     },
     status: {
         type: String,
-        enum: ['available', 'booked', 'maintenance'],
-        default: 'available',
+        enum: ['available', 'occupied', 'maintenance'],
+        default: 'available'
+    },
+    images: [String],
+    currentBooking: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Booking'
     },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: true
     },
-}, {
-    timestamps: true,
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
 });
 
-// Index for location-based queries
-hoardingSchema.index({ 'coordinates.latitude': 1, 'coordinates.longitude': 1 });
-hoardingSchema.index({ area: 1, status: 1 });
+// Geospatial index for location queries
+HoardingSchema.index({ coordinates: '2dsphere' });
 
-module.exports = mongoose.model('Hoarding', hoardingSchema);
+module.exports = mongoose.model('Hoarding', HoardingSchema);
+

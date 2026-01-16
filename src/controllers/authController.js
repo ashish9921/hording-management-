@@ -1,19 +1,26 @@
 const User = require('../models/User');
-const generateToken = require('../utils/generateToken');
+const jwt = require('jsonwebtoken');
 
-// @desc    Register new user
+// Generate JWT Token
+const generateToken = (id) => {
+    return jwt.sign({ id }, process.env.JWT_SECRET, {
+        expiresIn: '30d'
+    });
+};
+
+// @desc    Register user
 // @route   POST /api/auth/signup
 // @access  Public
 exports.signup = async (req, res) => {
     try {
-        const { name, email, password, userType, ...otherData } = req.body;
+        const { name, email, password, userType, phone, ...otherFields } = req.body;
 
-        // Check if user already exists
+        // Check if user exists
         const userExists = await User.findOne({ email });
         if (userExists) {
             return res.status(400).json({
                 success: false,
-                message: 'User already exists with this email'
+                message: 'User already exists'
             });
         }
 
@@ -23,7 +30,8 @@ exports.signup = async (req, res) => {
             email,
             password,
             userType,
-            ...otherData
+            phone,
+            ...otherFields
         });
 
         // Generate token
@@ -34,19 +42,17 @@ exports.signup = async (req, res) => {
             message: 'User registered successfully',
             token,
             user: {
-                id: user._id,
+                _id: user._id,
                 name: user.name,
                 email: user.email,
-                userType: user.userType,
-                phoneNo: user.phoneNo,
-                verificationStatus: user.verificationStatus
+                userType: user.userType
             }
         });
     } catch (error) {
         console.error('Signup error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error creating user',
+            message: 'Error registering user',
             error: error.message
         });
     }
@@ -87,14 +93,6 @@ exports.login = async (req, res) => {
             });
         }
 
-        // Check if user is active
-        if (!user.isActive) {
-            return res.status(403).json({
-                success: false,
-                message: 'Account is deactivated'
-            });
-        }
-
         // Generate token
         const token = generateToken(user._id);
 
@@ -103,14 +101,11 @@ exports.login = async (req, res) => {
             message: 'Login successful',
             token,
             user: {
-                id: user._id,
+                _id: user._id,
                 name: user.name,
                 email: user.email,
                 userType: user.userType,
-                phoneNo: user.phoneNo,
-                verificationStatus: user.verificationStatus,
-                businessName: user.businessName,
-                shopLocation: user.shopLocation
+                phone: user.phone
             }
         });
     } catch (error) {
@@ -123,7 +118,7 @@ exports.login = async (req, res) => {
     }
 };
 
-// @desc    Get current user profile
+// @desc    Get current user
 // @route   GET /api/auth/me
 // @access  Private
 exports.getMe = async (req, res) => {
@@ -137,7 +132,7 @@ exports.getMe = async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: 'Error fetching user profile',
+            message: 'Error fetching user',
             error: error.message
         });
     }
@@ -148,11 +143,11 @@ exports.getMe = async (req, res) => {
 // @access  Private
 exports.updateProfile = async (req, res) => {
     try {
-        const { name, phoneNo, ...otherData } = req.body;
+        const { name, phone } = req.body;
 
         const user = await User.findByIdAndUpdate(
             req.user._id,
-            { name, phoneNo, ...otherData },
+            { name, phone },
             { new: true, runValidators: true }
         );
 
@@ -168,4 +163,4 @@ exports.updateProfile = async (req, res) => {
             error: error.message
         });
     }
-};  
+};

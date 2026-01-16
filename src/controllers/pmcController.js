@@ -1,60 +1,69 @@
 const Booking = require('../models/Booking');
-const Hoarding = require('../models/Hoarding');
 const Complaint = require('../models/Complaint');
-const RecyclerCollection = require('../models/RecyclerCollection');
+const Collection = require('../models/Collection');
+const Hoarding = require('../models/Hoarding');
 
-// @desc    Get PMC dashboard statistics
-// @route   GET /api/pmc/dashboard
-// @access  Private (PMC)
-exports.getDashboardStats = async (req, res) => {
+// @desc    Get PMC dashboard stats
+// @route   GET /api/pmc/stats/overview
+// @access  Private/PMC
+exports.getOverviewStats = async (req, res) => {
     try {
-        const totalHoardings = await Hoarding.countDocuments();
-        const activeBookings = await Booking.countDocuments({ status: 'active' });
-        const pendingApprovals = await Booking.countDocuments({ status: 'pending' });
-        const expiredBookings = await Booking.countDocuments({ status: 'expired' });
-
-        // Calculate total revenue (sum of approved bookings)
-        const revenueData = await Booking.aggregate([
-            { $match: { status: { $in: ['active', 'approved'] } } },
-            { $group: { _id: null, total: { $sum: '$approvedAmount' } } }
+        const [
+            totalBookings,
+            pendingBookings,
+            activeBookings,
+            totalComplaints,
+            pendingComplaints,
+            totalHoardings,
+            occupiedHoardings,
+            pendingCollections
+        ] = await Promise.all([
+            Booking.countDocuments(),
+            Booking.countDocuments({ status: 'pending' }),
+            Booking.countDocuments({ status: 'active' }),
+            Complaint.countDocuments(),
+            Complaint.countDocuments({ status: 'pending' }),
+            Hoarding.countDocuments(),
+            Hoarding.countDocuments({ status: 'occupied' }),
+            Collection.countDocuments({ status: 'pending' })
         ]);
-        const totalRevenue = revenueData[0]?.total || 0;
 
-        // Pending deposits
-        const pendingDepositsData = await Booking.aggregate([
-            { $match: { status: 'approved', depositStatus: 'pending' } },
-            { $group: { _id: null, total: { $sum: '$depositAmount' } } }
-        ]);
-        const pendingDeposits = pendingDepositsData[0]?.total || 0;
+        // Calculate revenue
+        const bookings = await Booking.find({ status: { $in: ['active', 'expired', 'collected'] } });
+        const totalRevenue = bookings.reduce((sum, b) => sum + b.totalRent, 0);
 
         res.json({
             success: true,
             stats: {
-                totalHoardings,
+                totalBookings,
+                pendingBookings,
                 activeBookings,
-                pendingApprovals,
-                expiredBookings,
                 totalRevenue,
-                pendingDeposits
+                totalComplaints,
+                pendingComplaints,
+                totalHoardings,
+                occupiedHoardings,
+                availableHoardings: totalHoardings - occupiedHoardings,
+                pendingCollections
             }
         });
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: 'Error fetching dashboard stats',
+            message: 'Error fetching stats',
             error: error.message
         });
     }
 };
 
-// @desc    Get all pending bookings
+// @desc    Get pending bookings for review
 // @route   GET /api/pmc/bookings/pending
-// @access  Private (PMC)
+// @access  Private/PMC
 exports.getPendingBookings = async (req, res) => {
     try {
         const bookings = await Booking.find({ status: 'pending' })
-            .populate('hoardingId')
-            .populate('printingPressId', 'name email phoneNo shopLocation licenseNo')
+            .populate('hoarding')
+            .populate('printingPress', 'name email companyName')
             .sort({ createdAt: -1 });
 
         res.json({
@@ -71,77 +80,11 @@ exports.getPendingBookings = async (req, res) => {
     }
 };
 
-// @desc    Get all bookings (with filters)
-// @route   GET /api/pmc/bookings
-// @access  Private (PMC)
-exports.getAllBookings = async (req, res) => {
-    try {
-        const { status, startDate, endDate } = req.query;
-
-        let query = {};
-        if (status) query.status = status;
-        if (startDate && endDate) {
-            query.createdAt = {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
-            };
-        }
-
-        const bookings = await Booking.find(query)
-            .populate('hoardingId')
-            .populate('printingPressId', 'name email phoneNo')
-            .sort({ createdAt: -1 });
-
-        res.json({
-            success: true,
-            count: bookings.length,
-            bookings
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Error fetching bookings',
-            error: error.message
-        });
-    }
-};
-
-// @desc    Get booking details for review
-// @route   GET /api/pmc/bookings/:id/review
-// @access  Private (PMC)
-exports.reviewBooking = async (req, res) => {
-    try {
-        const booking = await Booking.findById(req.params.id)
-            .populate('hoardingId')
-            .populate('printingPressId', 'name email phoneNo shopLocation licenseNo noOfMachines');
-
-        if (!booking) {
-            return res.status(404).json({
-                success: false,
-                message: 'Booking not found'
-            });
-        }
-
-        res.json({
-            success: true,
-            booking
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Error fetching booking',
-            error: error.message
-        });
-    }
-};
-
-// @desc    Approve a booking
-// @route   POST /api/pmc/bookings/:id/approve
-// @access  Private (PMC)
+// @desc    Approve booking
+// @route   PUT /api/pmc/bookings/:id/approve
+// @access  Private/PMC
 exports.approveBooking = async (req, res) => {
     try {
-        const { approvedAmount, depositAmount } = req.body;
-
         const booking = await Booking.findById(req.params.id);
 
         if (!booking) {
@@ -151,24 +94,17 @@ exports.approveBooking = async (req, res) => {
             });
         }
 
-        if (booking.status !== 'pending') {
-            return res.status(400).json({
-                success: false,
-                message: 'Booking is not pending approval'
-            });
-        }
-
-        // Update booking
         booking.status = 'approved';
-        booking.approvedAmount = approvedAmount || booking.requestedAmount;
-        booking.depositAmount = depositAmount || (booking.approvedAmount * 0.2); // 20% default
-        booking.approvedBy = req.user._id;
-        booking.approvalDate = new Date();
-
+        booking.reviewedBy = req.user._id;
+        booking.reviewedAt = new Date();
+        booking.approvedAt = new Date();
         await booking.save();
 
         // Update hoarding status
-        await Hoarding.findByIdAndUpdate(booking.hoardingId, { status: 'booked' });
+        await Hoarding.findByIdAndUpdate(booking.hoarding, {
+            status: 'occupied',
+            currentBooking: booking._id
+        });
 
         res.json({
             success: true,
@@ -184,19 +120,12 @@ exports.approveBooking = async (req, res) => {
     }
 };
 
-// @desc    Reject a booking
-// @route   POST /api/pmc/bookings/:id/reject
-// @access  Private (PMC)
+// @desc    Reject booking
+// @route   PUT /api/pmc/bookings/:id/reject
+// @access  Private/PMC
 exports.rejectBooking = async (req, res) => {
     try {
-        const { rejectionReason } = req.body;
-
-        if (!rejectionReason) {
-            return res.status(400).json({
-                success: false,
-                message: 'Rejection reason is required'
-            });
-        }
+        const { reason } = req.body;
 
         const booking = await Booking.findById(req.params.id);
 
@@ -207,18 +136,10 @@ exports.rejectBooking = async (req, res) => {
             });
         }
 
-        if (booking.status !== 'pending') {
-            return res.status(400).json({
-                success: false,
-                message: 'Booking is not pending approval'
-            });
-        }
-
         booking.status = 'rejected';
-        booking.rejectionReason = rejectionReason;
-        booking.approvedBy = req.user._id;
-        booking.approvalDate = new Date();
-
+        booking.reviewedBy = req.user._id;
+        booking.reviewedAt = new Date();
+        booking.rejectionReason = reason;
         await booking.save();
 
         res.json({
@@ -235,79 +156,34 @@ exports.rejectBooking = async (req, res) => {
     }
 };
 
-// @desc    Get pricing settings
-// @route   GET /api/pmc/settings/pricing
-// @access  Private (PMC)
-exports.getPricingSettings = async (req, res) => {
+// @desc    Verify collection
+// @route   PUT /api/pmc/collections/:id/verify
+// @access  Private/PMC
+exports.verifyCollection = async (req, res) => {
     try {
-        // In a real app, you'd store this in a Settings model
-        // For now, return mock data
-        const pricing = [
-            { id: 1, size: '10x10 ft', baseRate: 10000, location: 'Standard' },
-            { id: 2, size: '20x10 ft', baseRate: 15000, location: 'Standard' },
-            { id: 3, size: '20x15 ft', baseRate: 20000, location: 'Standard' },
-            { id: 4, size: '10x10 ft', baseRate: 15000, location: 'Prime (High Traffic)' },
-            { id: 5, size: '20x10 ft', baseRate: 25000, location: 'Prime (High Traffic)' },
-        ];
+        const collection = await Collection.findById(req.params.id);
+
+        if (!collection) {
+            return res.status(404).json({
+                success: false,
+                message: 'Collection not found'
+            });
+        }
+
+        collection.status = 'verified';
+        collection.verifiedBy = req.user._id;
+        collection.verifiedAt = new Date();
+        await collection.save();
 
         res.json({
             success: true,
-            pricing,
-            depositPercent: 20,
-            lateFeePercent: 2
+            message: 'Collection verified successfully',
+            collection
         });
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: 'Error fetching pricing settings',
-            error: error.message
-        });
-    }
-};
-
-// @desc    Update pricing settings
-// @route   PUT /api/pmc/settings/pricing
-// @access  Private (PMC)
-exports.updatePricingSettings = async (req, res) => {
-    try {
-        // In a real app, you'd save this to a Settings model
-        const { pricing, depositPercent, lateFeePercent } = req.body;
-
-        res.json({
-            success: true,
-            message: 'Pricing settings updated successfully',
-            pricing,
-            depositPercent,
-            lateFeePercent
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Error updating pricing settings',
-            error: error.message
-        });
-    }
-};
-
-// @desc    Get all complaints for review
-// @route   GET /api/pmc/complaints
-// @access  Private (PMC)
-exports.getComplaintsForReview = async (req, res) => {
-    try {
-        const complaints = await Complaint.find()
-            .populate('reportedBy', 'name email phoneNo')
-            .populate('bookingId')
-            .sort({ createdAt: -1 });
-
-        res.json({
-            success: true,
-            count: complaints.length,
-            complaints
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Error fetching complaints',
+            message: 'Error verifying collection',
             error: error.message
         });
     }

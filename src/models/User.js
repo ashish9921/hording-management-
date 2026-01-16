@@ -1,87 +1,69 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const userSchema = new mongoose.Schema({
+const UserSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: [true, 'Name is required'],
+        trim: true
+    },
     email: {
         type: String,
         required: [true, 'Email is required'],
         unique: true,
         lowercase: true,
-        trim: true,
+        trim: true
     },
     password: {
         type: String,
         required: [true, 'Password is required'],
         minlength: 6,
-        select: false, // Don't return password by default
+        select: false
+    },
+    phone: {
+        type: String,
+        trim: true
     },
     userType: {
         type: String,
         required: true,
-        enum: ['printing_press', 'public', 'pmc', 'recycler'],
-    },
-
-    // Common fields
-    name: {
-        type: String,
-        required: [true, 'Name is required'],
-    },
-    phoneNo: {
-        type: String,
-        required: [true, 'Phone number is required'],
+        enum: ['public', 'printing-press', 'pmc', 'recycler']
     },
 
     // Printing Press specific
-    shopLocation: String,
-    licenseNo: String,
-    noOfMachines: String,
+    companyName: String,
+    gstNumber: String,
 
     // PMC specific
     employeeId: String,
     department: String,
-    designation: String,
-    officeAddress: String,
-    verificationStatus: {
-        type: String,
-        enum: ['pending', 'approved', 'rejected'],
-        default: 'pending'
-    },
-    documents: {
-        idCard: String,
-        authorizationLetter: String,
-        employmentProof: String,
-    },
 
     // Recycler specific
-    businessName: String,
-    ownerName: String,
-    serviceArea: String,
-    registrationNo: String,
-    vehicleDetails: String,
-    businessLicense: String,
-    vehicleProof: String,
+    vehicleNumber: String,
+    licenseNumber: String,
 
     isActive: {
         type: Boolean,
-        default: true,
+        default: true
     },
-}, {
-    timestamps: true,
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
 });
 
 // Hash password before saving
-userSchema.pre('save', async function (next) {
-    if (!this.isModified('password')) {
-        next();
-    }
+UserSchema.pre('save', async function (next) {
+    if (!this.isModified('password')) return next();
 
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
+    next();
 });
 
 // Compare password method
-userSchema.methods.comparePassword = async function (enteredPassword) {
-    return await bcrypt.compare(enteredPassword, this.password);
+UserSchema.methods.comparePassword = async function (candidatePassword) {
+    return await bcrypt.compare(candidatePassword, this.password);
 };
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model('User', UserSchema);

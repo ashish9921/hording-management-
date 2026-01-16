@@ -1,106 +1,85 @@
 const mongoose = require('mongoose');
 
-const bookingSchema = new mongoose.Schema({
+const BookingSchema = new mongoose.Schema({
     bookingId: {
         type: String,
         unique: true,
-        required: true,
+        required: true
     },
-    hoardingId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Hoarding',
-        required: true,
-    },
-    printingPressId: {
+    printingPress: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
+        required: true
     },
-
-    // Booking Details
+    hoarding: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Hoarding',
+        required: true
+    },
     displayName: {
         type: String,
-        required: true,
-    },
-    contactNumber: {
-        type: String,
-        required: true,
-    },
-    customerName: {
-        type: String,
-        required: true,
-    },
-    customerMobile: {
-        type: String,
-        required: true,
-    },
-    hoardingType: {
-        type: String,
-        required: true,
-    },
-    duration: {
-        type: Number,
-        required: true,
+        required: [true, 'Display name is required']
     },
     startDate: {
         type: Date,
-        required: true,
+        required: [true, 'Start date is required']
     },
     endDate: {
         type: Date,
-        required: true,
+        required: [true, 'End date is required']
     },
-
-    // Financial
-    requestedAmount: {
+    duration: {
+        type: Number, // in days
+        required: true
+    },
+    totalRent: {
         type: Number,
-        required: true,
+        required: true
     },
-    approvedAmount: Number,
-    depositAmount: Number,
-    depositStatus: {
-        type: String,
-        enum: ['pending', 'paid', 'refunded'],
-        default: 'pending',
-    },
-
-    // Banner
-    bannerImage: {
-        type: String,
-        required: true,
-    },
-
-    // Approval Flow
+    bannerImage: String,
+    qrCode: String,
     status: {
         type: String,
-        enum: ['pending', 'approved', 'rejected', 'active', 'expired'],
-        default: 'pending',
+        enum: ['pending', 'approved', 'rejected', 'active', 'expired', 'collected'],
+        default: 'pending'
     },
-    approvedBy: {
+
+    // PMC Review
+    reviewedBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        ref: 'User'
     },
-    approvalDate: Date,
+    reviewedAt: Date,
     rejectionReason: String,
 
-    // QR Code
-    qrCodeData: String,
+    // Approval date
+    approvedAt: Date,
 
-}, {
-    timestamps: true,
+    // Collection
+    collectionDate: Date,
+
+    createdAt: {
+        type: Date,
+        default: Date.now
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now
+    }
 });
 
-// Generate booking ID
-bookingSchema.pre('save', async function (next) {
-    if (!this.bookingId) {
-        const timestamp = Date.now().toString().slice(-7);
-        this.bookingId = `BK${timestamp}`;
+// Update status based on dates
+BookingSchema.pre('save', function (next) {
+    const now = new Date();
+
+    if (this.status === 'approved' && this.startDate <= now && this.endDate >= now) {
+        this.status = 'active';
+    } else if (this.status === 'active' && this.endDate < now) {
+        this.status = 'expired';
     }
+
+    this.updatedAt = now;
     next();
 });
 
-// Index for queries
-bookingSchema.index({ printingPressId: 1, status: 1 });
-bookingSchema.index({ status: 1, createdAt: -1 });
-
-module.exports = mongoose.model('Booking', bookingSchema);
+module.exports = mongoose.model('Booking', BookingSchema);
