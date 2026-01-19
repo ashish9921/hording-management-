@@ -16,10 +16,36 @@ const BookingSchema = new mongoose.Schema({
         ref: 'Hoarding',
         required: true
     },
+
+    // Display Information
     displayName: {
         type: String,
         required: [true, 'Display name is required']
     },
+
+    // ✅ NEW FIELDS - From Frontend Form
+    contactNumber: {
+        type: String,
+        required: [true, 'Contact number is required'],
+        trim: true
+    },
+    customerName: {
+        type: String,
+        required: [true, 'Customer name is required'],
+        trim: true
+    },
+    customerMobile: {
+        type: String,
+        required: [true, 'Customer mobile is required'],
+        trim: true
+    },
+    hoardingType: {
+        type: String,
+        required: [true, 'Hoarding type is required'],
+        enum: ['Backlit', 'Front Lit', 'Non-Lit', 'Digital LED', 'Vinyl Banner']
+    },
+
+    // Dates
     startDate: {
         type: Date,
         required: [true, 'Start date is required']
@@ -32,12 +58,18 @@ const BookingSchema = new mongoose.Schema({
         type: Number, // in days
         required: true
     },
+
+    // Financial
     totalRent: {
         type: Number,
         required: true
     },
+
+    // Media
     bannerImage: String,
     qrCode: String,
+
+    // Status
     status: {
         type: String,
         enum: ['pending', 'approved', 'rejected', 'active', 'expired', 'collected'],

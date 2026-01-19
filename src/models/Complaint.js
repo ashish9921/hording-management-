@@ -43,6 +43,18 @@ const ComplaintSchema = new mongoose.Schema({
     photo: String,
     photoTimestamp: Date,
 
+    // ✅ NEW FIELDS - From Frontend Form
+    contactName: {
+        type: String,
+        required: [true, 'Contact name is required'],
+        trim: true
+    },
+    contactPhone: {
+        type: String,
+        required: [true, 'Contact phone is required'],
+        trim: true
+    },
+
     status: {
         type: String,
         enum: ['pending', 'in-progress', 'resolved', 'rejected'],

@@ -16,7 +16,9 @@ exports.createComplaint = async (req, res) => {
             address,
             accuracy,
             photo,
-            photoTimestamp
+            photoTimestamp,
+            contactName,        // ✅ NEW
+            contactPhone        // ✅ NEW
         } = req.body;
 
         const complaintId = generateComplaintId();
@@ -35,6 +37,8 @@ exports.createComplaint = async (req, res) => {
             accuracy,
             photo,
             photoTimestamp: photoTimestamp || new Date(),
+            contactName,        // ✅ NEW
+            contactPhone,       // ✅ NEW
             status: 'pending'
         });
 

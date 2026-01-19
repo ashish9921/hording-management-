@@ -11,6 +11,11 @@ exports.createBooking = async (req, res) => {
         const {
             hoardingId,
             displayName,
+            contactNumber,        // ✅ NEW
+            customerName,         // ✅ NEW
+            customerMobile,       // ✅ NEW
+            hoardingType,         // ✅ NEW
+            duration,             // Duration in months from frontend
             startDate,
             endDate,
             bannerImage
@@ -33,35 +38,49 @@ exports.createBooking = async (req, res) => {
             });
         }
 
-        // Calculate duration and rent
+        // Calculate duration in days and rent
         const start = new Date(startDate);
         const end = new Date(endDate);
-        const duration = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-        const totalRent = hoarding.baseRent * Math.ceil(duration / 30);
+        const durationInDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+
+        // Calculate total rent (duration is in months from frontend)
+        const totalRent = hoarding.baseRent * parseInt(duration);
 
         // Generate booking ID
         const bookingId = generateBookingId();
 
-        // Create booking
+        // Create booking with ALL fields
         const booking = await Booking.create({
             bookingId,
             printingPress: req.user._id,
             hoarding: hoardingId,
             displayName,
+            contactNumber,        // ✅ NEW
+            customerName,         // ✅ NEW
+            customerMobile,       // ✅ NEW
+            hoardingType,         // ✅ NEW
             startDate: start,
             endDate: end,
-            duration,
+            duration: durationInDays,
             totalRent,
             bannerImage,
             status: 'pending'
         });
 
-        // Generate QR Code
+        // Generate QR Code with booking details
         const qrCodeData = {
             bookingId: booking.bookingId,
             hoardingId: hoarding.hoardingId,
             location: hoarding.location,
-            displayName
+            displayName: booking.displayName,
+            customerName: booking.customerName,     // ✅ NEW
+            customerMobile: booking.customerMobile, // ✅ NEW
+            hoardingType: booking.hoardingType,     // ✅ NEW
+            duration: duration,
+            startDate: booking.startDate,
+            endDate: booking.endDate,
+            size: hoarding.size,
+            rent: hoarding.baseRent
         };
 
         const qrCodeUrl = await generateQRCode(qrCodeData);

@@ -33,14 +33,22 @@ const UserSchema = new mongoose.Schema({
     // Printing Press specific
     companyName: String,
     gstNumber: String,
+    shopLocation: String,      // ✅ NEW - From frontend signup form
+    licenseNo: String,        // ✅ NEW - From frontend signup form  
+    noOfMachines: String,     // ✅ NEW - From frontend signup form
 
     // PMC specific
     employeeId: String,
     department: String,
+    designation: String,      // ✅ ADDED - Good to have
 
     // Recycler specific
     vehicleNumber: String,
     licenseNumber: String,
+    businessName: String,     // ✅ ADDED - From your mock data
+    ownerName: String,        // ✅ ADDED - Good to have
+    serviceArea: String,      // ✅ ADDED - Good to have
+    registrationNo: String,   // ✅ ADDED - Good to have
 
     isActive: {
         type: Boolean,
