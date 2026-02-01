@@ -118,7 +118,7 @@ const testUsers = [
         email: 'press@example.com',
         password: 'password123',
         phoneNo: '9876543210',
-        userType: 'printing_press',
+        userType: 'printing-press',
         shopLocation: 'Karve Road, Pune',
         licenseNo: 'LIC123456',
         noOfMachines: '5'
