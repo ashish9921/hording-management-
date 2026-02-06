@@ -1,7 +1,7 @@
 const Booking = require('../models/Booking');
 const Hoarding = require('../models/Hoarding');
 const { generateBookingId } = require('../utils/generateId');
-const { generateQRCode } = require('../utils/qrCodeGenerator');
+const generateQRCode = require('../utils/qrCodeGenerator');
 
 // @desc    Create booking
 // @route   POST /api/bookings

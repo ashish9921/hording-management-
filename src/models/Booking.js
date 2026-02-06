@@ -17,7 +17,7 @@ const BookingSchema = new mongoose.Schema({
         required: true
     },
 
-    // Display Information
+    // Disp ay Information
     displayName: {
         type: String,
         required: [true, 'Display name is required']
