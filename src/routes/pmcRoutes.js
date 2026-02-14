@@ -13,6 +13,7 @@ router.get('/stats/overview', pmcController.getOverviewStats);
 
 // Bookings
 router.get('/bookings/pending', pmcController.getPendingBookings);
+router.get('/bookings/all-booking', pmcController.getAllBookings);
 router.put('/bookings/:id/approve', pmcController.approveBooking);
 router.put('/bookings/:id/reject', pmcController.rejectBooking);
 

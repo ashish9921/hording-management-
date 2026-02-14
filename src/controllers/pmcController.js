@@ -80,6 +80,27 @@ exports.getPendingBookings = async (req, res) => {
     }
 };
 
+exports.getAllBookings = async (req, res) => {
+    try {
+        const bookings = await Booking.find()
+            .populate('hoarding')
+            .populate('printingPress', 'name email companyName')
+            .sort({ createdAt: -1 });
+
+        res.json({
+            success: true,
+            count: bookings.length,
+            bookings
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error fetching pending bookings',
+            error: error.message
+        });
+    }
+};
+
 // @desc    Approve booking
 // @route   PUT /api/pmc/bookings/:id/approve
 // @access  Private/PMC
