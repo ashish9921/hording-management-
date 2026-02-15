@@ -46,10 +46,12 @@ const ComplaintSchema = new mongoose.Schema({
     // ✅ NEW FIELDS - From Frontend Form
     contactName: {
         type: String,
+        required: [true, 'Contact name is required'],
         trim: true
     },
     contactPhone: {
         type: String,
+        required: [true, 'Contact phone is required'],
         trim: true
     },
 

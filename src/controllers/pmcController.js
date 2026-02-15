@@ -80,22 +80,40 @@ exports.getPendingBookings = async (req, res) => {
     }
 };
 
+// @desc    Get all bookings (with optional status filter)
+// @route   GET /api/bookings?status=pending
+// @access  Private/PMC
 exports.getAllBookings = async (req, res) => {
     try {
-        const bookings = await Booking.find()
-            .populate('hoarding')
-            .populate('printingPress', 'name email companyName')
+        const { status } = req.query;  // ✅ Read from query params
+
+        console.log('📋 Filter:', status);
+
+        // Build query
+        let query = {};
+
+        if (status && status !== 'all') {
+            query.status = status;  // ✅ Filter by status
+        }
+
+        const bookings = await Booking.find(query)
+            .populate('printingPress', 'name email phone')
+            .populate('hoarding', 'location size hoardingId baseRent')
             .sort({ createdAt: -1 });
+
+        console.log('✅ Found', bookings.length, 'bookings');
 
         res.json({
             success: true,
             count: bookings.length,
             bookings
         });
+
     } catch (error) {
+        console.error('❌ Error:', error);
         res.status(500).json({
             success: false,
-            message: 'Error fetching pending bookings',
+            message: 'Error fetching bookings',
             error: error.message
         });
     }
