@@ -16,6 +16,7 @@ router.get('/bookings/pending', pmcController.getPendingBookings);
 router.get('/bookings/all-booking', pmcController.getAllBookings);
 router.put('/bookings/:id/approve', pmcController.approveBooking);
 router.put('/bookings/:id/reject', pmcController.rejectBooking);
+router.get('/bookings/:id', pmcController.getBookingById);
 
 // Complaints
 router.get('/complaints', complaintController.getAllComplaints);

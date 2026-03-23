@@ -159,6 +159,22 @@ exports.approveBooking = async (req, res) => {
     }
 };
 
+exports.getBookingById = async (req, res) => {
+    try {
+        const booking = await Booking.findById(req.params.id)
+            .populate('hoarding', 'location size baseRent')
+            .populate('printingPress', 'name email phoneNo shopLocation licenseNo');
+
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found' });
+        }
+
+        res.status(200).json({ success: true, booking });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 // @desc    Reject booking
 // @route   PUT /api/pmc/bookings/:id/reject
 // @access  Private/PMC
