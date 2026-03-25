@@ -147,7 +147,8 @@ exports.getAllComplaints = async (req, res) => {
 // @access  Private/PMC
 exports.resolveComplaint = async (req, res) => {
     try {
-        const { resolution, rewardPoints = 50 } = req.body;
+        const { resolution, rewardPoints = 50, remark } = req.body;
+
 
         const complaint = await Complaint.findById(req.params.id);
 
@@ -161,6 +162,7 @@ exports.resolveComplaint = async (req, res) => {
         // Update complaint
         complaint.status = 'resolved';
         complaint.resolution = resolution;
+        complaint.remark = remark;
         complaint.resolvedBy = req.user._id;
         complaint.resolvedAt = new Date();
         complaint.rewardPoints = rewardPoints;
