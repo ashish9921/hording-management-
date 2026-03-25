@@ -150,23 +150,28 @@ exports.resolveComplaint = async (req, res) => {
         const { resolution, rewardPoints = 50 } = req.body;
 
 
-        const complaint = await Complaint.findById(req.params.id);
 
+
+        const complaint = await Complaint.findByIdAndUpdate(
+            req.params.id,
+            {
+                status: 'resolved',
+                resolution,
+                resolvedBy: req.user._id,
+                resolvedAt: new Date(),
+                rewardPoints
+            },
+            {
+                new: true,
+                runValidators: false // ← THIS is what saves you
+            }
+        );
         if (!complaint) {
             return res.status(404).json({
                 success: false,
                 message: 'Complaint not found'
             });
         }
-
-        // Update complaint
-        complaint.status = 'resolved';
-        complaint.resolution = resolution;
-        complaint.resolvedBy = req.user._id;
-        complaint.resolvedAt = new Date();
-        complaint.rewardPoints = rewardPoints;
-        await complaint.save();
-
         // Award points
         if (rewardPoints > 0) {
             await RewardTransaction.create({
