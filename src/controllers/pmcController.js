@@ -92,7 +92,7 @@ exports.getAllBookings = async (req, res) => {
         // Build query
         let query = {};
 
-        if (status && status !== 'all') {
+        if (status) {
             query.status = status;  // ✅ Filter by status
         }
 
