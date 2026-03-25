@@ -162,7 +162,6 @@ exports.resolveComplaint = async (req, res) => {
         // Update complaint
         complaint.status = 'resolved';
         complaint.resolution = resolution;
-        complaint.remark = remark;
         complaint.resolvedBy = req.user._id;
         complaint.resolvedAt = new Date();
         complaint.rewardPoints = rewardPoints;
