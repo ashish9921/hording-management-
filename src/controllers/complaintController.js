@@ -1,6 +1,10 @@
+// src/controllers/complaintController.js
+
 const Complaint = require('../models/Complaint');
+const User = require('../models/User');                              // ✅ NEW
 const { RewardTransaction, UserRewards } = require('../models/Rewards');
 const { generateComplaintId } = require('../utils/generateId');
+const { sendPushNotification } = require('../utils/notificationHelper'); // ✅ NEW
 
 // @desc    Create complaint
 // @route   POST /api/public/complaints
@@ -17,8 +21,8 @@ exports.createComplaint = async (req, res) => {
             accuracy,
             photo,
             photoTimestamp,
-            contactName,        // ✅ NEW
-            contactPhone        // ✅ NEW
+            contactName,
+            contactPhone
         } = req.body;
 
         const complaintId = generateComplaintId();
@@ -37,10 +41,24 @@ exports.createComplaint = async (req, res) => {
             accuracy,
             photo,
             photoTimestamp: photoTimestamp || new Date(),
-            contactName,        // ✅ NEW
-            contactPhone,       // ✅ NEW
+            contactName,
+            contactPhone,
             status: 'pending'
         });
+
+        // ✅ NEW — Send notification to ALL PMC users
+        const pmcUsers = await User.find({ userType: 'pmc', fcmToken: { $ne: null } });
+        const pmcTokens = pmcUsers.map(u => u.fcmToken);
+
+        await sendPushNotification(
+            pmcTokens,
+            '🔔 New Complaint Received',
+            `${req.user.name || 'A citizen'} filed a complaint: ${complaintType}`,
+            {
+                screen: 'pmc-complaints',        // for navigation on tap
+                complaintId: complaint._id.toString()
+            }
+        );
 
         res.status(201).json({
             success: true,
@@ -101,10 +119,7 @@ exports.getComplaintById = async (req, res) => {
             });
         }
 
-        res.json({
-            success: true,
-            complaint
-        });
+        res.json({ success: true, complaint });
     } catch (error) {
         res.status(500).json({
             success: false,
@@ -120,7 +135,6 @@ exports.getComplaintById = async (req, res) => {
 exports.getAllComplaints = async (req, res) => {
     try {
         const { status } = req.query;
-
         const query = status ? { status } : {};
 
         const complaints = await Complaint.find(query)
@@ -149,9 +163,6 @@ exports.resolveComplaint = async (req, res) => {
     try {
         const { resolution, rewardPoints = 50 } = req.body;
 
-
-
-
         const complaint = await Complaint.findByIdAndUpdate(
             req.params.id,
             {
@@ -161,17 +172,13 @@ exports.resolveComplaint = async (req, res) => {
                 resolvedAt: new Date(),
                 rewardPoints
             },
-            {
-                new: true,
-                runValidators: false // ← THIS is what saves you
-            }
+            { new: true, runValidators: false }
         );
+
         if (!complaint) {
-            return res.status(404).json({
-                success: false,
-                message: 'Complaint not found'
-            });
+            return res.status(404).json({ success: false, message: 'Complaint not found' });
         }
+
         // Award points
         if (rewardPoints > 0) {
             await RewardTransaction.create({
@@ -186,21 +193,25 @@ exports.resolveComplaint = async (req, res) => {
             await UserRewards.findOneAndUpdate(
                 { userId: complaint.userId },
                 {
-                    $inc: {
-                        totalPoints: rewardPoints,
-                        totalEarned: rewardPoints
-                    },
+                    $inc: { totalPoints: rewardPoints, totalEarned: rewardPoints },
                     updatedAt: new Date()
                 },
                 { upsert: true }
             );
+
+            // ✅ NEW — Notify the public user their complaint was resolved
+            const publicUser = await User.findById(complaint.userId);
+            if (publicUser?.fcmToken) {
+                await sendPushNotification(
+                    [publicUser.fcmToken],
+                    '✅ Complaint Resolved',
+                    `Your complaint has been resolved! You earned ${rewardPoints} reward points.`,
+                    { screen: 'complaint-detail', complaintId: complaint._id.toString() }
+                );
+            }
         }
 
-        res.json({
-            success: true,
-            message: 'Complaint resolved successfully',
-            complaint
-        });
+        res.json({ success: true, message: 'Complaint resolved successfully', complaint });
     } catch (error) {
         res.status(500).json({
             success: false,
@@ -220,10 +231,7 @@ exports.rejectComplaint = async (req, res) => {
         const complaint = await Complaint.findById(req.params.id);
 
         if (!complaint) {
-            return res.status(404).json({
-                success: false,
-                message: 'Complaint not found'
-            });
+            return res.status(404).json({ success: false, message: 'Complaint not found' });
         }
 
         complaint.status = 'rejected';
@@ -232,11 +240,7 @@ exports.rejectComplaint = async (req, res) => {
         complaint.resolvedAt = new Date();
         await complaint.save();
 
-        res.json({
-            success: true,
-            message: 'Complaint rejected',
-            complaint
-        });
+        res.json({ success: true, message: 'Complaint rejected', complaint });
     } catch (error) {
         res.status(500).json({
             success: false,
